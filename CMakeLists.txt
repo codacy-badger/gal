@@ -11,3 +11,5 @@ project(GAL
     VERSION 0.1
     DESCRIPTION "Graphic Abstraction Layer - by Matt Chiasson"
 )
+
+hunter_add_package(SPIRV-Headers)
