@@ -1,2 +1,2 @@
-# gal
-C99 compliant mid-level Graphic Abstraction Layer inspired by Vulkan and Direct3D12
+# GAL
+C99 compliant mid-level (G)raphic (A)bstraction (L)ayer inspired by Vulkan and Direct3D12
