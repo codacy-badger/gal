@@ -19,7 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(Hunter/HunterGate)
@@ -34,21 +34,18 @@ project(gal
     DESCRIPTION "Graphic Abstraction Layer - by Mathieu-André Chiasson"
 )
 
-include(glslc)
+set(GAL_SHADER_SOURCES
+    src/shaders/default.vert
+    src/shaders/default.frag
+)
 
+include(glslc)
+glslc(GAL_GENERATED_SHADERS ${GAL_SHADER_SOURCES})
 
 add_library(gal
     src/gal.c
+    ${GAL_SHADER_SOURCES}
+    ${GAL_GENERATED_SHADERS}
 )
 
-glslc(
-    TARGET gal
-    SHADER_FILES
-        src/shaders/default.vert
-        src/shaders/default.frag
-    GENERATE_GLSL
-    GENERATE_GLSL_ES
-    GENERATE_HLSL
-    GENERATE_MSL
-)
 

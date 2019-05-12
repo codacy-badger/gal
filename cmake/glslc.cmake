@@ -21,13 +21,12 @@
 
 include_guard()
 
-if(POLICY CMP0076)
-  cmake_policy(SET CMP0076 OLD)
-endif()
+option(GAL_GLSLC_GENERATE_GLSL    "Generate GLSL Shaders"    ON)
+option(GAL_GLSLC_GENERATE_GLSL_ES "Generate GLSL ES Shaders" ON)
+option(GAL_GLSLC_GENERATE_MSL     "Generate MSL Shaders"     ON)
+option(GAL_GLSLC_GENERATE_HLSL    "Generate HLSL Shaders"    ON)
 
-function(glslc)
-
-    cmake_parse_arguments(_GLSLC "GENERATE_GLSL;GENERATE_GLSL_ES;GENERATE_MSL;GENERATE_HLSL" "TARGET" "SHADER_FILES" ${ARGN})
+function(glslc shaders)
 
     hunter_add_package(shaderc)
     hunter_add_package(spirv-cross)
@@ -35,95 +34,88 @@ function(glslc)
     find_package(shaderc CONFIG REQUIRED)
     find_program(SPIRV_CROSS_EXECUTABLE spirv-cross)
 
-    foreach(_GLSLC_SHADER_FILE IN LISTS _GLSLC_SHADER_FILES)
+    math(EXPR LAST_INDEX "${ARGC}-1")
+    foreach(I RANGE 1 ${LAST_INDEX})
 
-        get_filename_component(_GLSLC_DIRECTORY ${_GLSLC_SHADER_FILE} DIRECTORY)
-        get_filename_component(_GLSLC_EXT ${_GLSLC_SHADER_FILE} EXT)
-        get_filename_component(_GLSLC_NAME_WE ${_GLSLC_SHADER_FILE} NAME_WE)
+        get_filename_component(_GLSLC_DIRECTORY ${ARGV${I}} DIRECTORY)
+        get_filename_component(_GLSLC_NAME_WE ${ARGV${I}} NAME_WE)
+        get_filename_component(_GLSLC_TYPE ${ARGV${I}} EXT)
+        string(REGEX REPLACE "^\\." "" _GLSLC_TYPE ${_GLSLC_TYPE})
 
-        set(_GLSLC_SPV_OUTPUT ${_GLSLC_DIRECTORY}/${_GLSLC_NAME_WE}_spv${_GLSLC_EXT})
+        if(_GLSLC_TYPE STREQUAL vert)
+            set(IS_VERTEX TRUE)
+        elseif(_GLSLC_TYPE STREQUAL frag)
+            set(IS_FGRAMENT TRUE)
+        elseif(_GLSLC_TYPE STREQUAL tesc)
+            set(IS_TESSELATION_CONTROL TRUE)
+        elseif(_GLSLC_TYPE STREQUAL tese)
+            set(IS_TESSELATION_EVALUATION TRUE)
+        elseif(_GLSLC_TYPE STREQUAL geom)
+            set(IS_GEOMETRY TRUE)
+        elseif(_GLSLC_TYPE STREQUAL comp)
+            set(IS_COMPUTE TRUE)
+        else()
+            message(FATAL_ERROR "Unknown shader type \"${_GLSLC_TYPE}\".  Supported types are \"vert\", \"frag\", \"tesc\", \"tese\", \"geom\" and \"comp\"")
+        endif()
+
+        set(_GLSLC_OUTPUT_BASE ${_GLSLC_DIRECTORY}/${_GLSLC_NAME_WE}_${_GLSLC_TYPE})
+        set(_GLSLC_SPIRV_FILE ${_GLSLC_OUTPUT_BASE}.spv)
 
         add_custom_command(
-            OUTPUT ${_GLSLC_SPV_OUTPUT}
+            OUTPUT ${_GLSLC_SPIRV_FILE}
             COMMAND shaderc::glslc_exe
-            ARGS -c ${CMAKE_SOURCE_DIR}/${_GLSLC_SHADER_FILE} -o ${_GLSLC_SPV_OUTPUT}
-            DEPENDS ${_GLSLC_SHADER_FILE}
-            COMMENT "Generated ${_GLSLC_SPV_OUTPUT}"
+            ARGS -c ${CMAKE_SOURCE_DIR}/${ARGV${I}} -o ${_GLSLC_SPIRV_FILE}
+            DEPENDS ${ARGV${I}}
+            COMMENT "Generated ${_GLSLC_SPIRV_FILE}"
         )
-        set_source_files_properties(${_GLSLC_SPV_OUTPUT} PROPERTIES GENERATED TRUE)
-        target_sources(${_GLSLC_TARGET} PUBLIC ${_GLSLC_SHADER_FILE} ${_GLSLC_SPV_OUTPUT})
+        set_source_files_properties(${_GLSLC_SPIRV_FILE} PROPERTIES GENERATED TRUE)
+        list(APPEND ${shaders} ${_GLSLC_SPIRV_FILE})
 
-        if(_GLSLC_GENERATE_GLSL_ES)
-            macro(generate_glsl_es version)
-                set(_GLSLC_GLSL_${version}_ES_OUTPUT ${_GLSLC_DIRECTORY}/${_GLSLC_NAME_WE}_glsl_${version}_es${_GLSLC_EXT})
-                add_custom_command(
-                    OUTPUT ${_GLSLC_GLSL_${version}_ES_OUTPUT}
-                    COMMAND ${SPIRV_CROSS_EXECUTABLE}
-                    ARGS --version ${version} --es --output ${_GLSLC_GLSL_${version}_ES_OUTPUT} ${_GLSLC_SPV_OUTPUT} --force-temporary
-                    DEPENDS ${_GLSLC_SPV_OUTPUT}
-                    COMMENT "Generated ${_GLSLC_GLSL_${version}_ES_OUTPUT}"
-                    )
-                set_source_files_properties(${_GLSLC_GLSL_${version}_ES_OUTPUT} PROPERTIES GENERATED TRUE)
-                target_sources(${_GLSLC_TARGET} PUBLIC ${_GLSLC_GLSL_${version}_ES_OUTPUT})
-            endmacro()
-            generate_glsl_es(100)
-            generate_glsl_es(300)
-        endif()
-
-        if(_GLSLC_GENERATE_GLSL)
-            macro(generate_glsl version)
-                set(_GLSLC_GLSL_${version}_OUTPUT ${_GLSLC_DIRECTORY}/${_GLSLC_NAME_WE}_glsl_${version}${_GLSLC_EXT})
-                add_custom_command(
-                    OUTPUT ${_GLSLC_GLSL_${version}_OUTPUT}
-                    COMMAND ${SPIRV_CROSS_EXECUTABLE}
-                    ARGS --version ${version} --no-es --output ${_GLSLC_GLSL_${version}_OUTPUT} ${_GLSLC_SPV_OUTPUT}
-                    DEPENDS ${_GLSLC_SPV_OUTPUT}
-                    COMMENT "Generated ${_GLSLC_GLSL_${version}_OUTPUT}"
-                    )
-                set_source_files_properties(${_GLSLC_GLSL_${version}_OUTPUT} PROPERTIES GENERATED TRUE)
-                target_sources(${_GLSLC_TARGET} PUBLIC ${_GLSLC_GLSL_${version}_OUTPUT})
-            endmacro()
-            generate_glsl(110)
-            generate_glsl(120)
-            generate_glsl(130)
-            generate_glsl(140)
-            generate_glsl(150)
-            generate_glsl(330)
-            generate_glsl(400)
-            generate_glsl(410)
-            generate_glsl(420)
-            generate_glsl(430)
-            generate_glsl(440)
-            generate_glsl(450)
-            generate_glsl(460)
-        endif()
-
-        if (_GLSLC_GENERATE_MSL)
-            set(_GLSLC_MSL_OUTPUT ${_GLSLC_DIRECTORY}/${_GLSLC_NAME_WE}_msl${_GLSLC_EXT})
+        macro(spirv_cross output)
             add_custom_command(
-                OUTPUT ${_GLSLC_MSL_OUTPUT}
+                OUTPUT ${output}
                 COMMAND ${SPIRV_CROSS_EXECUTABLE}
-                ARGS --msl --output ${_GLSLC_MSL_OUTPUT} ${_GLSLC_SPV_OUTPUT}
-                DEPENDS ${_GLSLC_SPV_OUTPUT}
-                COMMENT "Generated ${_GLSLC_MSL_OUTPUT}"
+                ARGS ${ARGV} --output ${output} ${_GLSLC_SPIRV_FILE}
+                DEPENDS ${_GLSLC_SPIRV_FILE}
+                COMMENT "Generated ${output}"
                 )
-            set_source_files_properties(${_GLSLC_MSL_OUTPUT} PROPERTIES GENERATED TRUE)
-            target_sources(${_GLSLC_TARGET} PUBLIC ${_GLSLC_MSL_OUTPUT})
+            set_source_files_properties(${output} PROPERTIES GENERATED TRUE)
+            list(APPEND ${shaders} ${output})
+        endmacro()
+
+        spirv_cross(${_GLSLC_OUTPUT_BASE}.json --reflect)
+
+        if(GAL_GLSLC_GENERATE_GLSL_ES)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_100_es.glsl --version 100 --es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_300_es.glsl --version 300 --es --force-temporary)
         endif()
 
-        if (_GLSLC_GENERATE_HLSL)
-            set(_GLSLC_HLSL_OUTPUT ${_GLSLC_DIRECTORY}/${_GLSLC_NAME_WE}_hlsl${_GLSLC_EXT})
-            add_custom_command(
-                OUTPUT ${_GLSLC_HLSL_OUTPUT}
-                COMMAND ${SPIRV_CROSS_EXECUTABLE}
-                ARGS --hlsl --output ${_GLSLC_HLSL_OUTPUT} ${_GLSLC_SPV_OUTPUT}
-                DEPENDS ${_GLSLC_SPV_OUTPUT}
-                COMMENT "Generated ${_GLSLC_HLSL_OUTPUT}"
-                )
-            set_source_files_properties(${_GLSLC_HLSL_OUTPUT} PROPERTIES GENERATED TRUE)
-            target_sources(${_GLSLC_TARGET} PUBLIC ${_GLSLC_HLSL_OUTPUT})
+        if(GAL_GLSLC_GENERATE_GLSL)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_110.glsl --version 110 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_120.glsl --version 120 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_130.glsl --version 130 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_140.glsl --version 140 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_150.glsl --version 150 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_330.glsl --version 330 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_400.glsl --version 400 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_410.glsl --version 410 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_420.glsl --version 420 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_430.glsl --version 430 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_440.glsl --version 440 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_450.glsl --version 450 --no-es --force-temporary)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}_460.glsl --version 460 --no-es --force-temporary)
+        endif()
+
+        if (GAL_GLSLC_GENERATE_MSL)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}.metal --msl --force-temporary)
+        endif()
+
+        if (GAL_GLSLC_GENERATE_HLSL)
+            spirv_cross(${_GLSLC_OUTPUT_BASE}.hlsl --hlsl --force-temporary)
         endif()
 
     endforeach()
+
+    set(${shaders} ${${shaders}} PARENT_SCOPE)
 
 endfunction()
