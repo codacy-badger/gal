@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.com/mchiasson/gal.svg?branch=master)](https://travis-ci.com/mchiasson/gal)
 [![LICENSE](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Donate to this project using Patreon](https://img.shields.io/badge/patreon-donate-green.svg)](https://www.patreon.com/mattchiasson)
 
